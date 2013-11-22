@@ -10,3 +10,4 @@ generatedPSICS
 simulations
 *.bak
 *.dat
+/neuroConstruct/lemsSimulations/integrationWindow/inputRate.xml

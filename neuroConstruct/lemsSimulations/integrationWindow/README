@@ -1,0 +1,4 @@
+This folder contains the code for a simulation aimed at studying how
+the GrC model responds to regular synaptic stimulation of varying
+rate, and to estimate an "integration window" to be used in network
+simulations.
