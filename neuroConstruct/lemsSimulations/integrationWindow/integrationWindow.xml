@@ -6,6 +6,22 @@
   <Include file="Networks.xml"/>
   <Include file="Simulation.xml"/>
 
+  <ComponentType name="SpikeRecorder"
+		 extends="baseSynapse"
+		 description="Records the arrival times of incoming spikes, and keeps the count of the total. Very crude implementation, but gets the job done.">
+    <Dynamics>
+      <StateVariable name="i" exposure="i" dimension="current"/>
+      <StateVariable name="spikeCount" dimension="none"/>
+      <OnEvent port="in">
+	<StateAssignment variable="spikeCount" value="spikeCount + 1"/>
+      </OnEvent>
+      <OnStart>
+	<StateAssignment variable="i" value="0"/>
+	<StateAssignment variable="spikeCount" value="0"/>
+      </OnStart>
+    </Dynamics>
+  </ComponentType>
+
   <ComponentType name="spikeGeneratorDelay"
 		 extends="spikeGenerator"
 		 description="Simple generator of spikes at a regular interval
@@ -30,6 +46,8 @@
   <Include file="../../cellMechanisms/RothmanMFToGrCAMPA/RothmanMFToGrCAMPA.nml"/>
   <Include file="../../cellMechanisms/RothmanMFToGrCNMDA/RothmanMFToGrCNMDA.nml"/>
   <Include file="../../cellMechanisms/IaF_GrC/IaF_GrC.nml"/>
+
+  <SpikeRecorder id="spikeRecorder"/>
   <iafRefCell id="IaF_GrC_nospike" leakReversal="-79.67mV" leakConductance="1.498nS" thresh="1000V" reset="-63mV" C="3.22pF" refract="2ms">
     <notes>
       IaF GrC cell modified to prevent spiking, as this is probably
@@ -38,23 +56,47 @@
   </iafRefCell>
 
   <Include file="inputRate.xml"/>
-  <!--  <spikeGeneratorDelay id="mossySpiker" period="50ms"
-       delay="100ms"/> -->
 
   <network id="integrationWindowNetwork">
-    <population id="mossySpikerPop" component="mossySpiker" size="1"/>
-    <population id="GrCPop" component="IaF_GrC_nospike" size="1"/>
+    <population id="mossySpikerPop" component="mossySpiker" size="4"/>
+    <population id="GrCPop" component="IaF_GrC" size="1"/>
+    <population id="GrCSecondLayerPop" component="IaF_GrC" size="1"/>
 
     <!-- mossy to granule AMPA -->
-    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]" synapse="RothmanMFToGrCAMPA" destination="synapses"/>
-
+    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCAMPA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[1]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCAMPA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[2]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCAMPA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[3]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCAMPA"
+			destination="synapses"/>
     <!-- mossy to granule NMDA -->
-    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]" synapse="RothmanMFToGrCNMDA" destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCNMDA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[1]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCNMDA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[2]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCNMDA"
+			destination="synapses"/>
+    <synapticConnection from="mossySpikerPop[3]" to="GrCPop[0]"
+			synapse="RothmanMFToGrCNMDA"
+			destination="synapses"/>
+
+    <!-- granule to spike recorder -->
+    <synapticConnection from="GrCPop[0]" to="GrCSecondLayerPop[0]" synapse="spikeRecorder" destination="synapses"/>
   </network>
 
-  <Simulation id="integrationWindow" length="3 s" step="0.05 ms" target="integrationWindowNetwork">
+  <Simulation id="integrationWindow" length="60 s" step="0.05 ms" target="integrationWindowNetwork">
     <OutputFile id="of0" fileName="voltage.dat">
-      <OutputColumn id="sc" quantity="GrCPop[0]/v"/>
+      <OutputColumn id="v" quantity="GrCPop[0]/v"/>
+      <OutputColumn id="sc" quantity="GrCSecondLayerPop[0]/spikeRecorder/spikeCount"/>
     </OutputFile>
   </Simulation>
 
