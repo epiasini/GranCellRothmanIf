@@ -30,12 +30,10 @@ def moving_causal_average(signal, window_length, timestep):
     return np.convolve(signal, window, 'same')
 
 def main():
-    exc_rate_range = np.array([30, 40, 50, 60, 100])
-    window_size_range = np.linspace(6, 300, 10)
-    averaged_voltage = np.zeros((exc_rate_range.size, window_size_range.size))
-    sim_duration = 60. # s
-    n_bins = 1000
-    upper_hist_limit = 0.25
+    exc_rate_range = np.array([40])
+    sim_duration = 50. # s
+    n_bins = 200
+    upper_hist_limit = 0.300
 
     out_filename = "voltage.dat"
 
@@ -52,18 +50,25 @@ def main():
         timepoints = sim_data[:,0]
         voltage = sim_data[:,1]
         spike_times = timepoints[np.diff(sim_data[:,2]) != 0]
+        if not spike_times.size:
+            print('no output spikes for input firing rate of {}Hz!'.format(exc_rate))
+            break
 
-
-        relative_times = (np.atleast_2d(spike_times) - np.atleast_2d(spike_times).transpose()).flatten()
+        relative_times = np.zeros(shape=(spike_times.size, spike_times.size))
+        for s, t in enumerate(spike_times):
+            relative_times[s] = spike_times - t
+        #relative_times = (np.atleast_2d(spike_times) - np.atleast_2d(spike_times).transpose()).flatten()
         small_relative_times = relative_times[relative_times > 0]
         small_relative_times = small_relative_times[small_relative_times < upper_hist_limit]
+        if small_relative_times.size:
+            fig, ax = plt.subplots()
+            n, bins, patches = ax.hist(small_relative_times, bins=n_bins, color='k', normed=True)
+            uniform_baseline = 1. / (bins[-1] - bins[0])
 
-        uniform_baseline = small_relative_times.size / n_bins
-        
-        fig, ax = plt.subplots()
-        ax.hist(small_relative_times, bins=n_bins, color='k')
-        ax.plot([0, upper_hist_limit], [uniform_baseline, uniform_baseline], color='r', linewidth=1.5)
-        ax.set_title('Spike time autocorrelation for stim rate {}Hz'.format(exc_rate))
+            ax.plot([0, upper_hist_limit], [uniform_baseline, uniform_baseline], color='r', linewidth=1.5)
+            ax.set_title('Spike time autocorrelation for stim rate {}Hz'.format(exc_rate))
+            ax.set_xlabel('lag (s)')
+            ax.set_ylabel('relative frequency (spike probability density)')
     plt.show()
 
 if __name__ == "__main__":

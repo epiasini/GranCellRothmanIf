@@ -93,7 +93,7 @@
     <synapticConnection from="GrCPop[0]" to="GrCSecondLayerPop[0]" synapse="spikeRecorder" destination="synapses"/>
   </network>
 
-  <Simulation id="integrationWindow" length="60 s" step="0.05 ms" target="integrationWindowNetwork">
+  <Simulation id="integrationWindow" length="50 s" step="0.05 ms" target="integrationWindowNetwork">
     <OutputFile id="of0" fileName="voltage.dat">
       <OutputColumn id="v" quantity="GrCPop[0]/v"/>
       <OutputColumn id="sc" quantity="GrCSecondLayerPop[0]/spikeRecorder/spikeCount"/>
