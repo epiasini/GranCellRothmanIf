@@ -42,13 +42,43 @@ class SimulationConfigurationLEMSAdapter(object):
         spike_column.set("id", "sc")
         spike_column.set("quantity", "SpikeRecorderPop[0]/spikeRecorder/spikeCount")
 
+class NetworkLEMSAdapter(object):
+    def __init__(self, n_stims):
+        self.lems = ET.Element("Lems")
+        network = ET.SubElement(self.lems, "network")
+        network.set("id", "poissonStimNetwork")
+        mf_pop = ET.SubElement(network, "population")
+        mf_pop.set("id", "mossySpikerPop")
+        mf_pop.set("component", "mossySpiker")
+        mf_pop.set("size", str(n_stims))
+        grc_pop = ET.SubElement(network, "population")
+        grc_pop.set("id", "GrCPop")
+        grc_pop.set("component", "IaF_GrC")
+        grc_pop.set("size", "1")
+        sr_pop = ET.SubElement(network, "population")
+        sr_pop.set("id", "SpikeRecorderPop")
+        sr_pop.set("component", "IaF_GrC")
+        sr_pop.set("size", "1")
+        for conn_type in ['AMPA', 'NMDA']:
+            for mf in range(n_stims):
+                conn = ET.SubElement(network, "synapticConnection")
+                conn.set("from", "mossySpikerPop[{}]".format(mf))
+                conn.set("to", "GrCPop[0]")
+                conn.set("synapse", "RothmanMFToGrC{}".format(conn_type))
+                conn.set("destination", "synapses")
+        sr_conn = ET.SubElement(network, "synapticConnection")
+        sr_conn.set("from", "GrCPop[0]")
+        sr_conn.set("to", "SpikeRecorderPop[0]")
+        sr_conn.set("synapse", "spikeRecorder")
+        sr_conn.set("destination", "synapses")
+
 class CustomLEMSInclude(object):
     def __init__(self, filename):
         self.lems = ET.Element("Lems")
         include_element = ET.SubElement(self.lems, "Include")
         include_element.set("file", filename)
         
-def simulate_poisson_stimulation(exc_rate, sim_duration_in_s):
+def simulate_poisson_stimulation(exc_rate, sim_duration_in_s, n_stims=4):
     # create file where simulation data will be stored
     sim_data_file = tempfile.NamedTemporaryFile(delete=False, dir='./')
     sim_data_file.close()
@@ -70,12 +100,14 @@ def simulate_poisson_stimulation(exc_rate, sim_duration_in_s):
 
     # define procedurally generated lems elements
     lems_stim = StimulusLEMSAdapter(exc_rate).lems
+    lems_net = NetworkLEMSAdapter(n_stims).lems
     lems_sim = SimulationConfigurationLEMSAdapter(length=sim_duration_in_s,
                                                   out_filename=sim_data_file.name).lems
     
     # insert custom includes in simulation description template
     position_includes = 5
     position_stim = 10
+    position_net = 12
     position_sim = 13
     for k, inc in enumerate(lems_includes):
         lems_root.insert(position_includes, inc[0])
@@ -84,6 +116,7 @@ def simulate_poisson_stimulation(exc_rate, sim_duration_in_s):
         position_sim += 1
     # insert procedurally generated lems
     lems_root.insert(position_stim, lems_stim[0])
+    lems_root.insert(position_net, lems_net[0])
     lems_root.insert(position_sim, lems_sim[0])
     # write simulation description to disk
     sim_description_file = tempfile.NamedTemporaryFile(delete=False, dir='./')

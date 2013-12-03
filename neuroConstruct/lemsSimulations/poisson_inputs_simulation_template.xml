@@ -8,42 +8,6 @@
 
   <spikeRecorder id="spikeRecorder"/>
 
-  <network id="poissonStimNetwork">
-    <population id="mossySpikerPop" component="mossySpiker" size="4"/>
-    <population id="GrCPop" component="IaF_GrC" size="1"/>
-    <population id="SpikeRecorderPop" component="IaF_GrC" size="1"/>
-
-    <!-- mossy to granule AMPA -->
-    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCAMPA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[1]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCAMPA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[2]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCAMPA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[3]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCAMPA"
-			destination="synapses"/>
-    <!-- mossy to granule NMDA -->
-    <synapticConnection from="mossySpikerPop[0]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCNMDA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[1]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCNMDA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[2]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCNMDA"
-			destination="synapses"/>
-    <synapticConnection from="mossySpikerPop[3]" to="GrCPop[0]"
-			synapse="RothmanMFToGrCNMDA"
-			destination="synapses"/>
-
-    <!-- granule to spike recorder -->
-    <synapticConnection from="GrCPop[0]" to="SpikeRecorderPop[0]" synapse="spikeRecorder" destination="synapses"/>
-  </network>
-
   <Simulation id="showcase" length="0.5 s" step="0.025 ms" target="poissonStimNetwork">
     <Display id="GrCPop_v" title="GrCPop, VOLTAGE" timeScale="1ms" xmin="-10.0" xmax="520.0" ymin="-80.0" ymax="-35.0">
       <Line id="GrCPop_v" timeScale="1ms" quantity="GrCPop[0]/v" scale="1 mV" color="#000000"/>
