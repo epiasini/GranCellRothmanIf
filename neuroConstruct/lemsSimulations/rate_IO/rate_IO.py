@@ -26,11 +26,11 @@ def main():
     n_stims_range = np.array([4])
     exc_rate_range = np.arange(10, 155, 5)
     out_rates = np.zeros(shape=(n_stims_range.size, exc_rate_range.size))
-    sim_duration = 30 # s
+    sim_duration = 50 # s
     
     for d, n_stims in enumerate(n_stims_range):
         for k, exc_rate in enumerate(exc_rate_range):
-            sim_data = simulation_tools.simulate_poisson_stimulation([exc_rate for each in n_stims], sim_duration)
+            sim_data = simulation_tools.simulate_poisson_stimulation([exc_rate for each in range(n_stims)], sim_duration)
 
             spike_count = sim_data[-1,2]
             out_rates[d,k] = float(spike_count) / sim_duration
@@ -55,7 +55,7 @@ def main():
                    out_rates[d],
                    linewidth=1.5,
                    marker='o',
-                   color='r')
+                   color='b')
 
     ff_ax.set_title('GrC model: rate I/O with {} to {} Poisson stimuli and tonic GABA'.format(n_stims_range[0], n_stims_range[-1]))
     ff_ax.legend(loc='best')
