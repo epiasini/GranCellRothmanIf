@@ -9,10 +9,10 @@ sys.path.append(os.path.dirname(script_dir))
 import simulation_tools
 
 def main():
-    exc_rate = 80
+    exc_rates = [80, 80, 10, 10]
+    n_stims = len(exc_rates)
     sim_duration = 1
-    n_stims = 3
-    sim_data = simulation_tools.simulate_poisson_stimulation(exc_rate, sim_duration, n_stims, save_synaptic_conductances=True)
+    sim_data = simulation_tools.simulate_poisson_stimulation(exc_rates, sim_duration, save_synaptic_conductances=True)
     time = sim_data[:,0] * 1000
     voltage = sim_data[:,1] * 1000
     derivative = np.diff(voltage)

@@ -30,7 +30,7 @@ def main():
     
     for d, n_stims in enumerate(n_stims_range):
         for k, exc_rate in enumerate(exc_rate_range):
-            sim_data = simulation_tools.simulate_poisson_stimulation(exc_rate, sim_duration, n_stims)
+            sim_data = simulation_tools.simulate_poisson_stimulation([exc_rate for each in n_stims], sim_duration)
 
             spike_count = sim_data[-1,2]
             out_rates[d,k] = float(spike_count) / sim_duration
