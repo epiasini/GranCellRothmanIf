@@ -25,7 +25,13 @@ class StimulusLEMSAdapter(object):
         exc_spikegen.set("minimumISI", "1 ms")
 
 class SimulationConfigurationLEMSAdapter(object):
-    def __init__(self, length, out_filename, step=0.05, target="poissonStimNetwork"):
+    def __init__(self,
+                 length,
+                 n_stims,
+                 out_filename,
+                 step=0.05,
+                 target="poissonStimNetwork",
+                 save_synaptic_conductances=False):
         self.lems = ET.Element("Lems")
         simulation = ET.SubElement(self.lems, "Simulation")
         simulation.set("id", "generatedSimulation")
@@ -41,6 +47,12 @@ class SimulationConfigurationLEMSAdapter(object):
         spike_column = ET.SubElement(output_file, "OutputColumn")
         spike_column.set("id", "sc")
         spike_column.set("quantity", "SpikeRecorderPop[0]/spikeRecorder/spikeCount")
+        if save_synaptic_conductances:
+            for stim in range(n_stims):
+                for conn_type in ['AMPA', 'NMDA']:
+                    syn_column = ET.SubElement(output_file, "OutputColumn")
+                    syn_column.set("id", "{}{}".format(conn_type, stim))
+                    syn_column.set("quantity", "GrCPop[0]/RothmanMFToGrC{}{}/g".format(conn_type, stim))
 
 class NetworkLEMSAdapter(object):
     def __init__(self, n_stims):
@@ -64,7 +76,7 @@ class NetworkLEMSAdapter(object):
                 conn = ET.SubElement(network, "synapticConnection")
                 conn.set("from", "mossySpikerPop[{}]".format(mf))
                 conn.set("to", "GrCPop[0]")
-                conn.set("synapse", "RothmanMFToGrC{}".format(conn_type))
+                conn.set("synapse", "RothmanMFToGrC{}{}".format(conn_type, mf))
                 conn.set("destination", "synapses")
         sr_conn = ET.SubElement(network, "synapticConnection")
         sr_conn.set("from", "GrCPop[0]")
@@ -78,13 +90,14 @@ class CustomLEMSInclude(object):
         include_element = ET.SubElement(self.lems, "Include")
         include_element.set("file", filename)
         
-def simulate_poisson_stimulation(exc_rate, sim_duration_in_s, n_stims=4):
+def simulate_poisson_stimulation(exc_rate, sim_duration_in_s, n_stims=4, save_synaptic_conductances=False):
     # create file where simulation data will be stored
     sim_data_file = tempfile.NamedTemporaryFile(delete=False, dir='./')
     sim_data_file.close()
 
     project_dir = dirname(dirname(abspath(__file__)))
     # load base template for xml simulation description
+    ET.register_namespace('', 'http://www.neuroml.org/schema/neuroml2')
     template_filename = join(join(project_dir, "lemsSimulations"), "poisson_inputs_simulation_template.xml")
     lems_tree = ET.parse(template_filename)
     lems_root = lems_tree.getroot()
@@ -98,21 +111,41 @@ def simulate_poisson_stimulation(exc_rate, sim_duration_in_s, n_stims=4):
         include_filenames.append(join(join(cell_mechs_dir, component_name), component_name+'.nml'))
     lems_includes = [CustomLEMSInclude(filename).lems for filename in include_filenames]
 
+    # define replicas of synaptic components
+    synaptic_replicas = []
+    for stim in range(n_stims):
+        for syn_name in ['RothmanMFToGrCAMPA', 'RothmanMFToGrCNMDA']:
+            tree = ET.parse(join(join(cell_mechs_dir, syn_name), syn_name+'.nml'))
+            root = tree.getroot()
+            element = root.findall("./*[@id='{}']".format(syn_name))[0]
+            element.set("id", "{}{}".format(syn_name, stim))
+            synaptic_replicas.append(element)
+
     # define procedurally generated lems elements
     lems_stim = StimulusLEMSAdapter(exc_rate).lems
     lems_net = NetworkLEMSAdapter(n_stims).lems
     lems_sim = SimulationConfigurationLEMSAdapter(length=sim_duration_in_s,
-                                                  out_filename=sim_data_file.name).lems
+                                                  n_stims=n_stims,
+                                                  out_filename=sim_data_file.name,
+                                                  save_synaptic_conductances=save_synaptic_conductances).lems
     
     # insert custom includes in simulation description template
     position_includes = 5
-    position_stim = 10
-    position_net = 12
-    position_sim = 13
+    position_syn_replicas = 6
+    position_stim = 7
+    position_net = 8
+    position_sim = 9
     for k, inc in enumerate(lems_includes):
         lems_root.insert(position_includes, inc[0])
-        position_includes += 1
+        position_syn_replicas += 1
         position_stim += 1
+        position_net += 1
+        position_sim += 1
+    # insert synaptic replicas
+    for replica in synaptic_replicas:
+        lems_root.insert(position_syn_replicas, replica)
+        position_stim += 1
+        position_net += 1
         position_sim += 1
     # insert procedurally generated lems
     lems_root.insert(position_stim, lems_stim[0])
