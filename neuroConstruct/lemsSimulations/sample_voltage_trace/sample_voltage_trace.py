@@ -1,6 +1,9 @@
 import os
 import sys
 import numpy as np
+import matplotlib
+matplotlib.rc('font', family='Helvetica', size=20)
+matplotlib.rc('axes', labelsize='large')
 from matplotlib import pyplot as plt
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -19,7 +22,6 @@ def main():
     sim_duration = 0.25 # seconds
 
     linewidth = 2.5
-    fontsize = 16
 
     n_stims = len(exc_rates)
     sim_data = simulation_tools.simulate_poisson_stimulation(exc_rates, sim_duration, save_synaptic_conductances=True)
@@ -31,8 +33,8 @@ def main():
     # plot GrC membrane potential
     fig_v, ax_v = plt.subplots()
     ax_v.plot(time, voltage, linewidth=linewidth, color='b')
-    ax_v.set_xlabel("time (ms)", fontsize=fontsize)
-    ax_v.set_ylabel("membrane potential (mV)", fontsize=fontsize)
+    ax_v.set_xlabel("Time (ms)")
+    ax_v.set_ylabel("Membrane potential (mV)")
     bottom_left_axes(ax_v)
 
     # plot excitatory conductance trains
@@ -49,8 +51,8 @@ def main():
     for ax in ax_c:
         ax.axes.get_yaxis().set_ticks([0, 0.3, 0.6])
         bottom_left_axes(ax)
-    ax_c[-1].set_xlabel("time (ms)", fontsize=fontsize)
-    ax_c[2].set_ylabel("conductance (nS)", fontsize=fontsize)
+    ax_c[-1].set_xlabel("Time (ms)")
+    ax_c[2].set_ylabel("Conductance (nS)")
 
     plt.show()
     
