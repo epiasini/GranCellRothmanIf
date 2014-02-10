@@ -5,6 +5,7 @@ import xml.dom.minidom
 import numpy as np
 import h5py
 import tempfile
+import shutil
 from os.path import dirname, abspath, join
 from xml.etree import ElementTree as ET
 from matplotlib import pyplot as plt
@@ -62,11 +63,11 @@ class NetworkLEMSAdapter(object):
         network.set("id", "poissonStimNetwork")
         grc_pop = ET.SubElement(network, "population")
         grc_pop.set("id", "GrCPop")
-        grc_pop.set("component", "IaF_GrC")
+        grc_pop.set("component", "IaF_GrC_no_tonic_GABA")
         grc_pop.set("size", "1")
         sr_pop = ET.SubElement(network, "population")
         sr_pop.set("id", "SpikeRecorderPop")
-        sr_pop.set("component", "IaF_GrC")
+        sr_pop.set("component", "IaF_GrC_no_tonic_GABA")
         sr_pop.set("size", "1")
         for mf in range(n_stims):
             mf_pop = ET.SubElement(network, "population")
@@ -91,13 +92,83 @@ class CustomLEMSInclude(object):
         include_element = ET.SubElement(self.lems, "Include")
         include_element.set("file", filename)
         
-def simulate_poisson_stimulation(exc_rates, sim_duration_in_s, save_synaptic_conductances=False):
+def set_tonic_GABA(project_dir, conductance_in_nS, reversal_potential=-79.1):
+    """
+    Modify the IaF_GrC_no_tonic_GABA.nml file in the working copy of
+    the nC project to change the level of tonic GABA from what is
+    originally set in the model.
+
+    """
+    ET.register_namespace('', 'http://www.neuroml.org/schema/neuroml2')
+    filename = project_dir + "/cellMechanisms/IaF_GrC_no_tonic_GABA/IaF_GrC_no_tonic_GABA.nml"
+    tree = ET.parse(filename)
+    root = tree.getroot()
+    cell = root.find("{http://www.neuroml.org/schema/neuroml2}iafRefCell")
+    old_conductance = float(cell.get('leakConductance').rstrip('nS'))
+    old_reversal_potential = float(cell.get('leakReversal').rstrip('mV'))
+    new_conductance = old_conductance + conductance_in_nS
+    new_reversal_potential = (old_conductance * old_reversal_potential + conductance_in_nS * reversal_potential)/new_conductance
+    cell.set('leakConductance', '{}nS'.format(new_conductance))
+    cell.set('leakReversal', '{}mV'.format(new_reversal_potential))
+    tree.write(filename, encoding="UTF-8", xml_declaration=True)
+
+def scale_synaptic_conductance(project_dir, component_name, scaling_factor, attributes_to_scale, units='nS'):
+    ET.register_namespace('', 'http://www.neuroml.org/schema/neuroml2')
+    filename = project_dir + "/cellMechanisms/{0}/{0}.nml".format(component_name)
+    tree = ET.parse(filename)
+    root = tree.getroot()
+    synapse = root.findall(".//*[@id='{}']".format(component_name))[0]
+    for attribute in attributes_to_scale:
+        old_conductance = float(synapse.get(attribute).rstrip(units))
+        new_conductance = old_conductance * scaling_factor
+        synapse.set(attribute, '{}{}'.format(new_conductance, units))
+    tree.write(filename, encoding="UTF-8", xml_declaration=True)
+
+
+def scale_excitatory_conductances(project_dir, scaling_factor):
+    """
+    Modify the RothmanMFToGrCAMPA.nml and RothmanMFToGrCNMDA.nml files
+    in the working copy of of the nC project to scale the total amount
+    of excitatory conductance.
+
+    """
+    # scale AMPA
+    scale_synaptic_conductance(project_dir=project_dir,
+                               component_name='RothmanMFToGrCAMPA',
+                               scaling_factor=scaling_factor,
+                               attributes_to_scale=['directAmp1',
+                                                    'directAmp2',
+                                                    'spilloverAmp1',
+                                                    'spilloverAmp2',
+                                                    'spilloverAmp3'])
+    # scale NMDA
+    scale_synaptic_conductance(project_dir=project_dir,
+                               component_name='RothmanMFToGrCNMDA',
+                               scaling_factor=scaling_factor,
+                               attributes_to_scale=['directAmp1',
+                                                    'directAmp2'])
+
+
+def simulate_poisson_stimulation(exc_rates, sim_duration_in_s, save_synaptic_conductances=False, inh_scaling_factor=1., exc_scaling_factor=1.):
     n_stims = len(exc_rates)
     # create file where simulation data will be stored
     sim_data_file = tempfile.NamedTemporaryFile(delete=False, dir='./')
     sim_data_file.close()
 
     project_dir = dirname(dirname(abspath(__file__)))
+    cell_mechs_dir = join(project_dir, 'cellMechanisms')
+
+    # make temporary copy of mech files
+    temp_project_dir = tempfile.mkdtemp()
+    temp_cell_mechs_dir = join(temp_project_dir, 'cellMechanisms')
+    shutil.copytree(cell_mechs_dir, temp_cell_mechs_dir)
+
+    # scale conductances
+    gGABA_base_in_nS = 0.438
+    total_GABA_conductance_in_nS = gGABA_base_in_nS*inh_scaling_factor
+    set_tonic_GABA(temp_project_dir, total_GABA_conductance_in_nS)
+    scale_excitatory_conductances(temp_project_dir, exc_scaling_factor)
+
     # load base template for xml simulation description
     ET.register_namespace('', 'http://www.neuroml.org/schema/neuroml2')
     template_filename = join(join(project_dir, "lemsSimulations"), "poisson_inputs_simulation_template.xml")
@@ -105,19 +176,21 @@ def simulate_poisson_stimulation(exc_rates, sim_duration_in_s, save_synaptic_con
     lems_root = lems_tree.getroot()
 
     # define includes for custom component types and components
-    cell_mechs_dir = join(project_dir, 'cellMechanisms')
     custom_lems_defs_dir = join(project_dir, "lemsDefinitions")
     include_filenames = [join(custom_lems_defs_dir, 'spikeRecorder.xml'),
                          join(custom_lems_defs_dir, 'spikeGeneratorRefPoisson.xml')]
-    for component_name in ['RothmanMFToGrCAMPA', 'RothmanMFToGrCNMDA', 'IaF_GrC']:
-        include_filenames.append(join(join(cell_mechs_dir, component_name), component_name+'.nml'))
+    for component_name in ['RothmanMFToGrCAMPA', 'RothmanMFToGrCNMDA', 'IaF_GrC_no_tonic_GABA']:
+        include_filenames.append(join(join(temp_cell_mechs_dir, component_name), component_name+'.nml'))
     lems_includes = [CustomLEMSInclude(filename).lems for filename in include_filenames]
+
+
+
 
     # define replicas of synaptic components
     synaptic_replicas = []
     for stim in range(n_stims):
         for syn_name in ['RothmanMFToGrCAMPA', 'RothmanMFToGrCNMDA']:
-            tree = ET.parse(join(join(cell_mechs_dir, syn_name), syn_name+'.nml'))
+            tree = ET.parse(join(join(temp_cell_mechs_dir, syn_name), syn_name+'.nml'))
             root = tree.getroot()
             element = root.findall("./*[@id='{}']".format(syn_name))[0]
             element.set("id", "{}{}".format(syn_name, stim))
@@ -167,6 +240,8 @@ def simulate_poisson_stimulation(exc_rates, sim_duration_in_s, save_synaptic_con
     proc.communicate()
     # remove simulation description file
     os.remove(sim_description_file.name)
+    # remove temp mech dir
+    shutil.rmtree(temp_project_dir)
     # read in output firing rate and remove simulation data file
     out_data = np.loadtxt(sim_data_file.name)
     os.remove(sim_data_file.name)
