@@ -19,12 +19,14 @@ def bottom_left_axes(ax):
 
 def main():
     exc_rates = [80, 80, 10, 10] # Hertz
+    # use excitatory conductance scaling
+    exc_scaling_factor = 4./len(exc_rates)
     sim_duration = 0.25 # seconds
 
     linewidth = 2.5
 
     n_stims = len(exc_rates)
-    sim_data = simulation_tools.simulate_poisson_stimulation(exc_rates, sim_duration, save_synaptic_conductances=True)
+    sim_data = simulation_tools.simulate_poisson_stimulation(exc_rates, sim_duration, save_synaptic_conductances=True, exc_scaling_factor=exc_scaling_factor)
     time = sim_data[:,0] * 1000
     voltage = sim_data[:,1] * 1000
     derivative = np.diff(voltage)
@@ -52,7 +54,7 @@ def main():
         ax.axes.get_yaxis().set_ticks([0, 0.3, 0.6])
         bottom_left_axes(ax)
     ax_c[-1].set_xlabel("Time (ms)")
-    ax_c[2].set_ylabel("Conductance (nS)")
+    ax_c[-1].set_ylabel("Conductance (nS)")
 
     plt.show()
     
